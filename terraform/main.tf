@@ -1,5 +1,5 @@
 resource "digitalocean_vpc" "main" {
-  name     = "vasylyshyn-vpc"
+  name     = "vasylyshyn1-vpc"
   region   = var.region
   ip_range = var.vpc_ip_range
 }
