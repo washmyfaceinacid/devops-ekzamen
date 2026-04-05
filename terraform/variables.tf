@@ -19,11 +19,11 @@ variable "public_subnet_cidr" {
 variable "instance_type" {
   description = "ec2 instance type suitable for minikube/kubernetes"
   type        = string
-  default     = "t3.xlarge"
+  default     = "t3.small"
 }
 
 variable "bucket_name" {
   description = "s3 bucket name"
   type        = string
-  default     = "vasylyshyn-bucket"
+  default     = "vasylyshyn-bucket-s3"
 }
