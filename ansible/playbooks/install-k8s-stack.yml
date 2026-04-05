@@ -197,6 +197,7 @@
           [Install]
           WantedBy=multi-user.target
       notify: restart minikube proxy
+      when: not ansible_check_mode
 
     - name: enable and start minikube proxy
       ansible.builtin.systemd:
@@ -204,6 +205,7 @@
         daemon_reload: true
         enabled: true
         state: started
+      when: not ansible_check_mode
 
   handlers:
     - name: restart minikube proxy
