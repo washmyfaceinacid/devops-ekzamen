@@ -152,11 +152,18 @@
         remote_src: true
       when: not ansible_check_mode
 
+    - name: ensure docker group exists
+      ansible.builtin.group:
+        name: docker
+        state: present
+      when: not ansible_check_mode
+
     - name: ensure minikube owner exists in docker group
       ansible.builtin.user:
         name: "{{ minikube_run_user }}"
         groups: docker
         append: true
+      when: not ansible_check_mode
 
     - name: check minikube status
       ansible.builtin.command: "minikube status -p {{ minikube_profile }}"
