@@ -1,11 +1,10 @@
 ---
-- name: install Kubernetes stack
+- name: install Minikube stack
   hosts: k8s_nodes
   become: true
   gather_facts: true
 
   vars:
-    kubernetes_minor: "v1.30"
     kubectl_version: "v1.30.2"
     minikube_version: "v1.33.1"
     helm_version: "v3.16.2"
@@ -120,36 +119,11 @@
         - not ansible_check_mode
         - docker_service_name == ''
 
-    - name: add Kubernetes apt repository key
+    - name: install kubectl binary
       ansible.builtin.get_url:
-        url: https://pkgs.k8s.io/core:/stable:/{{ kubernetes_minor }}/deb/Release.key
-        dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
-        mode: "0644"
-
-    - name: configure Kubernetes apt repository
-      ansible.builtin.apt_repository:
-        repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/{{ kubernetes_minor }}/deb/ /"
-        filename: kubernetes
-        state: present
-
-    - name: install Kubernetes components
-      ansible.builtin.apt:
-        name:
-          - kubelet
-          - kubeadm
-          - kubectl
-          - cri-tools
-        state: present
-        update_cache: true
-
-    - name: hold Kubernetes component versions
-      ansible.builtin.dpkg_selections:
-        name: "{{ item }}"
-        selection: hold
-      loop:
-        - kubelet
-        - kubeadm
-        - kubectl
+        url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/amd64/kubectl"
+        dest: /usr/local/bin/kubectl
+        mode: "0755"
 
     - name: download Minikube binary
       ansible.builtin.get_url:
