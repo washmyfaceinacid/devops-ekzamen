@@ -1,45 +1,27 @@
 name: Ansible Kubernetes Stack CI/CD
 
 on:
-  workflow_dispatch:
-    inputs:
-      target_hosts:
-        description: "Comma-separated target VM IPs or hostnames"
-        required: true
-        type: string
-      ssh_user:
-        description: "SSH user on target VMs"
-        required: true
-        default: "ubuntu"
-        type: string
-      ssh_port:
-        description: "SSH port"
-        required: true
-        default: "22"
-        type: string
-      minikube_profile:
-        description: "Minikube profile name"
-        required: true
-        default: "minikube"
-        type: string
-      proxy_bind_address:
-        description: "Address to expose minikube proxy"
-        required: true
-        default: "0.0.0.0"
-        type: string
-      proxy_port:
-        description: "Port for minikube proxy"
-        required: true
-        default: "8001"
-        type: string
-      apply_changes:
-        description: "Run installation after successful check"
-        required: true
-        default: false
-        type: boolean
+  pull_request:
+    branches: [ main ]
+    paths:
+      - ansible/**
+      - .github/workflows/ansible-k8s-cicd.yml
+  push:
+    branches: [ main ]
+    paths:
+      - ansible/**
+      - .github/workflows/ansible-k8s-cicd.yml
 
 permissions:
   contents: read
+
+env:
+  ANSIBLE_TARGET_HOSTS: ${{ vars.ANSIBLE_TARGET_HOSTS }}
+  ANSIBLE_SSH_USER: ${{ vars.ANSIBLE_SSH_USER }}
+  ANSIBLE_SSH_PORT: ${{ vars.ANSIBLE_SSH_PORT }}
+  MINIKUBE_PROFILE: ${{ vars.MINIKUBE_PROFILE }}
+  MINIKUBE_PROXY_BIND_ADDRESS: ${{ vars.MINIKUBE_PROXY_BIND_ADDRESS }}
+  MINIKUBE_PROXY_PORT: ${{ vars.MINIKUBE_PROXY_PORT }}
 
 jobs:
   validate:
@@ -74,12 +56,15 @@ jobs:
 
       - name: Build Ansible inventory from inputs
         env:
-          TARGET_HOSTS: ${{ inputs.target_hosts }}
-          SSH_USER: ${{ inputs.ssh_user }}
-          SSH_PORT: ${{ inputs.ssh_port }}
+          TARGET_HOSTS: ${{ env.ANSIBLE_TARGET_HOSTS }}
+          SSH_USER: ${{ env.ANSIBLE_SSH_USER }}
+          SSH_PORT: ${{ env.ANSIBLE_SSH_PORT }}
         run: |
+          SSH_USER="${SSH_USER:-ubuntu}"
+          SSH_PORT="${SSH_PORT:-22}"
+
           if [ -z "$TARGET_HOSTS" ]; then
-            echo "::error::target_hosts input is empty"
+            echo "::error::Repository variable ANSIBLE_TARGET_HOSTS is empty"
             exit 1
           fi
 
@@ -115,18 +100,23 @@ jobs:
         env:
           ANSIBLE_CONFIG: ${{ github.workspace }}/ansible/ansible.cfg
         run: |
+          SSH_USER="${ANSIBLE_SSH_USER:-ubuntu}"
+          MINIKUBE_PROFILE_VAL="${MINIKUBE_PROFILE:-minikube}"
+          PROXY_BIND_VAL="${MINIKUBE_PROXY_BIND_ADDRESS:-0.0.0.0}"
+          PROXY_PORT_VAL="${MINIKUBE_PROXY_PORT:-8001}"
+
           ansible-playbook playbooks/install-k8s-stack.yml \
             --check --diff \
-            --extra-vars "minikube_run_user=${{ inputs.ssh_user }}" \
-            --extra-vars "minikube_profile=${{ inputs.minikube_profile }}" \
-            --extra-vars "proxy_bind_address=${{ inputs.proxy_bind_address }}" \
-            --extra-vars "proxy_port=${{ inputs.proxy_port }}"
+            --extra-vars "minikube_run_user=${SSH_USER}" \
+            --extra-vars "minikube_profile=${MINIKUBE_PROFILE_VAL}" \
+            --extra-vars "proxy_bind_address=${PROXY_BIND_VAL}" \
+            --extra-vars "proxy_port=${PROXY_PORT_VAL}"
 
   apply:
     name: Apply Installation
     runs-on: ubuntu-latest
     needs: validate
-    if: ${{ inputs.apply_changes == true }}
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout
@@ -156,12 +146,15 @@ jobs:
 
       - name: Build Ansible inventory from inputs
         env:
-          TARGET_HOSTS: ${{ inputs.target_hosts }}
-          SSH_USER: ${{ inputs.ssh_user }}
-          SSH_PORT: ${{ inputs.ssh_port }}
+          TARGET_HOSTS: ${{ env.ANSIBLE_TARGET_HOSTS }}
+          SSH_USER: ${{ env.ANSIBLE_SSH_USER }}
+          SSH_PORT: ${{ env.ANSIBLE_SSH_PORT }}
         run: |
+          SSH_USER="${SSH_USER:-ubuntu}"
+          SSH_PORT="${SSH_PORT:-22}"
+
           if [ -z "$TARGET_HOSTS" ]; then
-            echo "::error::target_hosts input is empty"
+            echo "::error::Repository variable ANSIBLE_TARGET_HOSTS is empty"
             exit 1
           fi
 
@@ -190,8 +183,13 @@ jobs:
         env:
           ANSIBLE_CONFIG: ${{ github.workspace }}/ansible/ansible.cfg
         run: |
+          SSH_USER="${ANSIBLE_SSH_USER:-ubuntu}"
+          MINIKUBE_PROFILE_VAL="${MINIKUBE_PROFILE:-minikube}"
+          PROXY_BIND_VAL="${MINIKUBE_PROXY_BIND_ADDRESS:-0.0.0.0}"
+          PROXY_PORT_VAL="${MINIKUBE_PROXY_PORT:-8001}"
+
           ansible-playbook playbooks/install-k8s-stack.yml \
-            --extra-vars "minikube_run_user=${{ inputs.ssh_user }}" \
-            --extra-vars "minikube_profile=${{ inputs.minikube_profile }}" \
-            --extra-vars "proxy_bind_address=${{ inputs.proxy_bind_address }}" \
-            --extra-vars "proxy_port=${{ inputs.proxy_port }}"
+            --extra-vars "minikube_run_user=${SSH_USER}" \
+            --extra-vars "minikube_profile=${MINIKUBE_PROFILE_VAL}" \
+            --extra-vars "proxy_bind_address=${PROXY_BIND_VAL}" \
+            --extra-vars "proxy_port=${PROXY_PORT_VAL}"
