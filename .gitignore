@@ -3,6 +3,7 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 README.md
+terraform.tfvars.example
 terraform/terraform.tfvars.example
 # User-specific files
 *.rsuser
@@ -199,6 +200,20 @@ publish/
 # Publish Web Output
 *.[Pp]ublish.xml
 *.azurePubxml
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl
 # Note: Comment the next line if you want to checkin your web deploy settings,
 # but database connection strings (with potential passwords) will be unencrypted
 *.pubxml

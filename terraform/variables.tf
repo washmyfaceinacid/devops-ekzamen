@@ -1,41 +1,29 @@
-variable "do_token" {
-  description = "digitalocean API token"
-  type        = string
-  sensitive   = true
-}
-
 variable "region" {
-  description = "digitalocean region closest to ukraine"
+  description = "aws region closest to ukraine"
   type        = string
-  default     = "fra1"
+  default     = "eu-central-1"
 }
 
-variable "vpc_ip_range" {
-  description = "CIDR block for VPC"
+variable "vpc_cidr" {
+  description = "cidr block for vpc"
   type        = string
-  default     = "10.10.20.0/24"
+  default     = "10.10.10.0/24"
 }
 
-variable "droplet_size" {
-  description = "size suitable for minikube/kubernetes"
+variable "public_subnet_cidr" {
+  description = "cidr block for public subnet"
   type        = string
-  default     = "s-4vcpu-8gb"
+  default     = "10.10.10.0/25"
 }
 
-variable "droplet_image" {
-  description = "ubuntu 24 image slug"
+variable "instance_type" {
+  description = "ec2 instance type suitable for minikube/kubernetes"
   type        = string
-  default     = "ubuntu-24-04-x64"
-}
-
-variable "droplet_ssh_key_ids" {
-  description = "SSH"
-  type        = list(string)
-  default     = []
+  default     = "t3.xlarge"
 }
 
 variable "bucket_name" {
-  description = "storage bucket name"
+  description = "s3 bucket name"
   type        = string
   default     = "vasylyshyn-bucket"
 }

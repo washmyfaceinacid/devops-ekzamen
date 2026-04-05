@@ -1,24 +1,24 @@
 output "vpc_id" {
   description = "VPC ID"
-  value       = digitalocean_vpc.main.id
+  value       = aws_vpc.main.id
 }
 
-output "droplet_id" {
-  description = "Droplet ID"
-  value       = digitalocean_droplet.node.id
+output "instance_id" {
+  description = "EC2 instance ID"
+  value       = aws_instance.node.id
 }
 
-output "droplet_ipv4" {
-  description = "Droplet public IPv4"
-  value       = digitalocean_droplet.node.ipv4_address
+output "instance_public_ip" {
+  description = "EC2 public IPv4"
+  value       = aws_instance.node.public_ip
 }
 
-output "firewall_id" {
-  description = "Firewall ID"
-  value       = digitalocean_firewall.main.id
+output "security_group_id" {
+  description = "Security Group ID"
+  value       = aws_security_group.main.id
 }
 
 output "bucket_name" {
-  description = "Spaces bucket name"
-  value       = digitalocean_spaces_bucket.main.name
+  description = "S3 bucket name"
+  value       = aws_s3_bucket.main.bucket
 }
