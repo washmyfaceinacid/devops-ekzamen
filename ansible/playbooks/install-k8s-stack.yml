@@ -1,0 +1,158 @@
+---
+- name: install Kubernetes stack
+  hosts: k8s_nodes
+  become: true
+  gather_facts: true
+
+  vars:
+    kubernetes_minor: "v1.30"
+    kubectl_version: "v1.30.2"
+    minikube_version: "v1.33.1"
+    helm_version: "v3.16.2"
+    minikube_profile: "minikube"
+    minikube_run_user: "ubuntu"
+    proxy_bind_address: "0.0.0.0"
+    proxy_port: 8001
+
+  pre_tasks:
+    - name: ensure OS is Ubuntu 24+
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - (ansible_distribution_major_version | int) >= 24
+        fail_msg: "this playbook supports Ubuntu 24+ only"
+
+    - name: ensure apt keyrings directory exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+  tasks:
+    - name: install required base packages
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - conntrack
+          - socat
+          - docker.io
+          - cri-tools
+        state: present
+        update_cache: true
+
+    - name: enable and start Docker service
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: add Kubernetes apt repository key
+      ansible.builtin.get_url:
+        url: https://pkgs.k8s.io/core:/stable:/{{ kubernetes_minor }}/deb/Release.key
+        dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+        mode: "0644"
+
+    - name: configure Kubernetes apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/{{ kubernetes_minor }}/deb/ /"
+        filename: kubernetes
+        state: present
+
+    - name: install Kubernetes components
+      ansible.builtin.apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        update_cache: true
+
+    - name: hold Kubernetes component versions
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+    - name: download Minikube binary
+      ansible.builtin.get_url:
+        url: "https://storage.googleapis.com/minikube/releases/{{ minikube_version }}/minikube-linux-amd64"
+        dest: /usr/local/bin/minikube
+        mode: "0755"
+
+    - name: download Helm archive
+      ansible.builtin.get_url:
+        url: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
+        dest: /tmp/helm.tar.gz
+        mode: "0644"
+
+    - name: extract Helm archive
+      ansible.builtin.unarchive:
+        src: /tmp/helm.tar.gz
+        dest: /tmp
+        remote_src: true
+
+    - name: install Helm binary
+      ansible.builtin.copy:
+        src: /tmp/linux-amd64/helm
+        dest: /usr/local/bin/helm
+        mode: "0755"
+        remote_src: true
+
+    - name: ensure minikube owner exists in docker group
+      ansible.builtin.user:
+        name: "{{ minikube_run_user }}"
+        groups: docker
+        append: true
+
+    - name: check minikube status
+      ansible.builtin.command: "minikube status -p {{ minikube_profile }}"
+      become_user: "{{ minikube_run_user }}"
+      register: minikube_status
+      changed_when: false
+      failed_when: false
+
+    - name: start minikube with docker driver when not running
+      ansible.builtin.command: "minikube start -p {{ minikube_profile }} --driver=docker"
+      become_user: "{{ minikube_run_user }}"
+      when: minikube_status.rc != 0
+
+    - name: install minikube proxy systemd unit
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/minikube-proxy.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Minikube kubectl proxy
+          After=network.target docker.service
+          Wants=docker.service
+
+          [Service]
+          Type=simple
+          User={{ minikube_run_user }}
+          ExecStart=/usr/local/bin/minikube -p {{ minikube_profile }} kubectl -- proxy --address={{ proxy_bind_address }} --accept-hosts=.* --port={{ proxy_port }}
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: restart minikube proxy
+
+    - name: enable and start minikube proxy
+      ansible.builtin.systemd:
+        name: minikube-proxy.service
+        daemon_reload: true
+        enabled: true
+        state: started
+
+  handlers:
+    - name: restart minikube proxy
+      ansible.builtin.systemd:
+        name: minikube-proxy.service
+        daemon_reload: true
+        state: restarted

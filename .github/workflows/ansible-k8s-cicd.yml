@@ -1,0 +1,197 @@
+name: Ansible Kubernetes Stack CI/CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_hosts:
+        description: "Comma-separated target VM IPs or hostnames"
+        required: true
+        type: string
+      ssh_user:
+        description: "SSH user on target VMs"
+        required: true
+        default: "ubuntu"
+        type: string
+      ssh_port:
+        description: "SSH port"
+        required: true
+        default: "22"
+        type: string
+      minikube_profile:
+        description: "Minikube profile name"
+        required: true
+        default: "minikube"
+        type: string
+      proxy_bind_address:
+        description: "Address to expose minikube proxy"
+        required: true
+        default: "0.0.0.0"
+        type: string
+      proxy_port:
+        description: "Port for minikube proxy"
+        required: true
+        default: "8001"
+        type: string
+      apply_changes:
+        description: "Run installation after successful check"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate and Dry-Run
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible-core==2.17.6
+
+      - name: Prepare SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "::error::Missing required secret: ANSIBLE_SSH_PRIVATE_KEY"
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf "%s\n" "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/ansible_key"
+          chmod 600 "$RUNNER_TEMP/ansible_key"
+
+      - name: Build Ansible inventory from inputs
+        env:
+          TARGET_HOSTS: ${{ inputs.target_hosts }}
+          SSH_USER: ${{ inputs.ssh_user }}
+          SSH_PORT: ${{ inputs.ssh_port }}
+        run: |
+          if [ -z "$TARGET_HOSTS" ]; then
+            echo "::error::target_hosts input is empty"
+            exit 1
+          fi
+
+          mkdir -p ansible/inventory
+          echo "[k8s_nodes]" > ansible/inventory/generated.ini
+
+          IFS=',' read -r -a HOSTS <<< "$TARGET_HOSTS"
+          count=0
+          for raw in "${HOSTS[@]}"; do
+            host=$(echo "$raw" | xargs)
+            if [ -z "$host" ]; then
+              continue
+            fi
+            echo "$host ansible_user=$SSH_USER ansible_port=$SSH_PORT ansible_ssh_private_key_file=$RUNNER_TEMP/ansible_key" >> ansible/inventory/generated.ini
+            ssh-keyscan -H "$host" >> ~/.ssh/known_hosts 2>/dev/null || true
+            count=$((count + 1))
+          done
+
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No valid hosts found in target_hosts input"
+            exit 1
+          fi
+
+      - name: Ansible syntax check
+        working-directory: ansible
+        env:
+          ANSIBLE_CONFIG: ${{ github.workspace }}/ansible/ansible.cfg
+        run: |
+          ansible-playbook playbooks/install-k8s-stack.yml --syntax-check
+
+      - name: Ansible dry-run check mode
+        working-directory: ansible
+        env:
+          ANSIBLE_CONFIG: ${{ github.workspace }}/ansible/ansible.cfg
+        run: |
+          ansible-playbook playbooks/install-k8s-stack.yml \
+            --check --diff \
+            --extra-vars "minikube_run_user=${{ inputs.ssh_user }}" \
+            --extra-vars "minikube_profile=${{ inputs.minikube_profile }}" \
+            --extra-vars "proxy_bind_address=${{ inputs.proxy_bind_address }}" \
+            --extra-vars "proxy_port=${{ inputs.proxy_port }}"
+
+  apply:
+    name: Apply Installation
+    runs-on: ubuntu-latest
+    needs: validate
+    if: ${{ inputs.apply_changes == true }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible-core==2.17.6
+
+      - name: Prepare SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ANSIBLE_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "::error::Missing required secret: ANSIBLE_SSH_PRIVATE_KEY"
+            exit 1
+          fi
+          install -m 700 -d ~/.ssh
+          printf "%s\n" "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/ansible_key"
+          chmod 600 "$RUNNER_TEMP/ansible_key"
+
+      - name: Build Ansible inventory from inputs
+        env:
+          TARGET_HOSTS: ${{ inputs.target_hosts }}
+          SSH_USER: ${{ inputs.ssh_user }}
+          SSH_PORT: ${{ inputs.ssh_port }}
+        run: |
+          if [ -z "$TARGET_HOSTS" ]; then
+            echo "::error::target_hosts input is empty"
+            exit 1
+          fi
+
+          mkdir -p ansible/inventory
+          echo "[k8s_nodes]" > ansible/inventory/generated.ini
+
+          IFS=',' read -r -a HOSTS <<< "$TARGET_HOSTS"
+          count=0
+          for raw in "${HOSTS[@]}"; do
+            host=$(echo "$raw" | xargs)
+            if [ -z "$host" ]; then
+              continue
+            fi
+            echo "$host ansible_user=$SSH_USER ansible_port=$SSH_PORT ansible_ssh_private_key_file=$RUNNER_TEMP/ansible_key" >> ansible/inventory/generated.ini
+            ssh-keyscan -H "$host" >> ~/.ssh/known_hosts 2>/dev/null || true
+            count=$((count + 1))
+          done
+
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No valid hosts found in target_hosts input"
+            exit 1
+          fi
+
+      - name: Install Kubernetes stack
+        working-directory: ansible
+        env:
+          ANSIBLE_CONFIG: ${{ github.workspace }}/ansible/ansible.cfg
+        run: |
+          ansible-playbook playbooks/install-k8s-stack.yml \
+            --extra-vars "minikube_run_user=${{ inputs.ssh_user }}" \
+            --extra-vars "minikube_profile=${{ inputs.minikube_profile }}" \
+            --extra-vars "proxy_bind_address=${{ inputs.proxy_bind_address }}" \
+            --extra-vars "proxy_port=${{ inputs.proxy_port }}"
