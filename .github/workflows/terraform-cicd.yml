@@ -18,9 +18,6 @@ jobs:
       TF_IN_AUTOMATION: true
       TF_VAR_region: ${{ secrets.AWS_REGION }}
       TF_VAR_key_name: ${{ secrets.AWS_KEY_PAIR_NAME }}
-      TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
-      TF_STATE_KEY: ${{ secrets.TF_STATE_KEY }}
-      TF_STATE_REGION: ${{ secrets.TF_STATE_REGION }}
 
     steps:
       - name: Checkout
@@ -36,27 +33,9 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Validate backend configuration values
-        run: |
-          missing=0
-          for v in TF_STATE_BUCKET TF_STATE_KEY TF_STATE_REGION; do
-            if [ -z "${!v}" ] || [ "${!v}" = "null" ]; then
-              echo "::error::Missing required secret: $v"
-              missing=1
-            fi
-          done
-          if [ "$missing" -ne 0 ]; then
-            echo "Backend config is incomplete. Set TF_STATE_BUCKET, TF_STATE_KEY, TF_STATE_REGION in repository secrets."
-            exit 1
-          fi
-
       - name: Terraform Init (remote state)
         working-directory: terraform
-        run: |
-          terraform init \
-            -backend-config="bucket=${TF_STATE_BUCKET:-vasylyshyn-tfstate}" \
-            -backend-config="key=${TF_STATE_KEY:-terraform/devops-ekzamen.tfstate}" \
-            -backend-config="region=${TF_STATE_REGION:-eu-central-1}"
+        run: terraform init
 
       - name: Terraform Fmt Check
         working-directory: terraform
@@ -74,9 +53,6 @@ jobs:
       TF_IN_AUTOMATION: true
       TF_VAR_region: ${{ secrets.AWS_REGION }}
       TF_VAR_key_name: ${{ secrets.AWS_KEY_PAIR_NAME }}
-      TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
-      TF_STATE_KEY: ${{ secrets.TF_STATE_KEY }}
-      TF_STATE_REGION: ${{ secrets.TF_STATE_REGION }}
 
     steps:
       - name: Checkout
@@ -92,27 +68,9 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Validate backend configuration values
-        run: |
-          missing=0
-          for v in TF_STATE_BUCKET TF_STATE_KEY TF_STATE_REGION; do
-            if [ -z "${!v}" ] || [ "${!v}" = "null" ]; then
-              echo "::error::Missing required secret: $v"
-              missing=1
-            fi
-          done
-          if [ "$missing" -ne 0 ]; then
-            echo "Backend config is incomplete. Set TF_STATE_BUCKET, TF_STATE_KEY, TF_STATE_REGION in repository secrets."
-            exit 1
-          fi
-
       - name: Terraform Init (remote state)
         working-directory: terraform
-        run: |
-          terraform init \
-            -backend-config="bucket=${TF_STATE_BUCKET:-vasylyshyn-tfstate}" \
-            -backend-config="key=${TF_STATE_KEY:-terraform/devops-ekzamen.tfstate}" \
-            -backend-config="region=${TF_STATE_REGION:-eu-central-1}"
+        run: terraform init
 
       - name: Terraform Plan
         working-directory: terraform
@@ -133,9 +91,6 @@ jobs:
       TF_IN_AUTOMATION: true
       TF_VAR_region: ${{ secrets.AWS_REGION }}
       TF_VAR_key_name: ${{ secrets.AWS_KEY_PAIR_NAME }}
-      TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
-      TF_STATE_KEY: ${{ secrets.TF_STATE_KEY }}
-      TF_STATE_REGION: ${{ secrets.TF_STATE_REGION }}
 
     steps:
       - name: Checkout
@@ -151,27 +106,9 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Validate backend configuration values
-        run: |
-          missing=0
-          for v in TF_STATE_BUCKET TF_STATE_KEY TF_STATE_REGION; do
-            if [ -z "${!v}" ] || [ "${!v}" = "null" ]; then
-              echo "::error::Missing required secret: $v"
-              missing=1
-            fi
-          done
-          if [ "$missing" -ne 0 ]; then
-            echo "Backend config is incomplete. Set TF_STATE_BUCKET, TF_STATE_KEY, TF_STATE_REGION in repository secrets."
-            exit 1
-          fi
-
       - name: Terraform Init (remote state)
         working-directory: terraform
-        run: |
-          terraform init \
-            -backend-config="bucket=${TF_STATE_BUCKET:-vasylyshyn-tfstate}" \
-            -backend-config="key=${TF_STATE_KEY:-terraform/devops-ekzamen.tfstate}" \
-            -backend-config="region=${TF_STATE_REGION:-eu-central-1}"
+        run: terraform init
 
       - name: Download plan artifact
         uses: actions/download-artifact@v4

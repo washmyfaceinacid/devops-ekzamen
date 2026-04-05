@@ -8,5 +8,9 @@ terraform {
     }
   }
 
-  backend "s3" {}
+  backend "s3" {
+    bucket = "vasylyshyn-tfstate"
+    key    = "terraform/vasylyshyn.tfstate"
+    region = "eu-central-1"
+  }
 }
