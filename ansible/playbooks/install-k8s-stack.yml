@@ -81,6 +81,17 @@
               - docker.io
             state: present
             update_cache: true
+          failed_when: false
+          register: docker_io_install
+
+        - name: install Docker via official convenience script when apt fallback fails
+          ansible.builtin.shell: |
+            set -euo pipefail
+            curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+            sh /tmp/get-docker.sh
+          args:
+            executable: /bin/bash
+          when: docker_io_install is failed
 
     - name: enable and start Docker service
       ansible.builtin.service:
