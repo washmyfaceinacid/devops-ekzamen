@@ -93,11 +93,32 @@
             executable: /bin/bash
           when: docker_io_install is failed
 
+    - name: collect service facts
+      ansible.builtin.service_facts:
+
+    - name: detect Docker service unit
+      ansible.builtin.set_fact:
+        docker_service_name: >-
+          {{
+            'docker' if 'docker.service' in ansible_facts.services
+            else ('docker.io' if 'docker.io.service' in ansible_facts.services else '')
+          }}
+
     - name: enable and start Docker service
       ansible.builtin.service:
-        name: docker
+        name: "{{ docker_service_name }}"
         state: started
         enabled: true
+      when:
+        - not ansible_check_mode
+        - docker_service_name != ''
+
+    - name: fail when Docker service unit is not found
+      ansible.builtin.fail:
+        msg: "Docker service unit was not found after installation (expected docker.service or docker.io.service)."
+      when:
+        - not ansible_check_mode
+        - docker_service_name == ''
 
     - name: add Kubernetes apt repository key
       ansible.builtin.get_url:
