@@ -1,0 +1,9 @@
+# Do not commit real secrets.
+# Prefer setting DO token in CI via TF_VAR_do_token.
+
+do_token = "replace-me"
+
+# Optional overrides:
+#region      = "fra1"
+#bucket_name = "vasylyshyn-bucket"
+#existing_vpc_id = "replace-with-existing-vpc-uuid"

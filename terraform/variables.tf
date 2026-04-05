@@ -13,7 +13,7 @@ variable "region" {
 variable "vpc_ip_range" {
   description = "CIDR block for VPC"
   type        = string
-  default     = "10.10.10.0/24"
+  default     = "10.10.20.0/24"
 }
 
 variable "droplet_size" {

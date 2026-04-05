@@ -1,7 +1,12 @@
 resource "digitalocean_vpc" "main" {
-  name     = "vasylyshyn1-vpc"
+  count    = var.existing_vpc_id == "" ? 1 : 0
+  name     = "vasylyshyn-vpc"
   region   = var.region
   ip_range = var.vpc_ip_range
+}
+
+locals {
+  effective_vpc_id = var.existing_vpc_id != "" ? var.existing_vpc_id : digitalocean_vpc.main[0].id
 }
 
 resource "digitalocean_droplet" "node" {
@@ -9,7 +14,7 @@ resource "digitalocean_droplet" "node" {
   region     = var.region
   size       = var.droplet_size
   image      = var.droplet_image
-  vpc_uuid   = digitalocean_vpc.main.id
+  vpc_uuid   = local.effective_vpc_id
   monitoring = true
   ssh_keys   = var.droplet_ssh_key_ids
 }
