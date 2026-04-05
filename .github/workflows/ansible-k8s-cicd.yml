@@ -15,14 +15,6 @@ on:
 permissions:
   contents: read
 
-env:
-  ANSIBLE_TARGET_HOSTS: ${{ vars.ANSIBLE_TARGET_HOSTS }}
-  ANSIBLE_SSH_USER: ${{ vars.ANSIBLE_SSH_USER }}
-  ANSIBLE_SSH_PORT: ${{ vars.ANSIBLE_SSH_PORT }}
-  MINIKUBE_PROFILE: ${{ vars.MINIKUBE_PROFILE }}
-  MINIKUBE_PROXY_BIND_ADDRESS: ${{ vars.MINIKUBE_PROXY_BIND_ADDRESS }}
-  MINIKUBE_PROXY_PORT: ${{ vars.MINIKUBE_PROXY_PORT }}
-
 jobs:
   validate:
     name: Validate and Dry-Run
@@ -54,39 +46,20 @@ jobs:
           printf "%s\n" "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/ansible_key"
           chmod 600 "$RUNNER_TEMP/ansible_key"
 
-      - name: Build Ansible inventory from inputs
-        env:
-          TARGET_HOSTS: ${{ env.ANSIBLE_TARGET_HOSTS }}
-          SSH_USER: ${{ env.ANSIBLE_SSH_USER }}
-          SSH_PORT: ${{ env.ANSIBLE_SSH_PORT }}
+      - name: Validate static inventory
         run: |
-          SSH_USER="${SSH_USER:-ubuntu}"
-          SSH_PORT="${SSH_PORT:-22}"
-
-          if [ -z "$TARGET_HOSTS" ]; then
-            echo "::error::Repository variable ANSIBLE_TARGET_HOSTS is empty"
+          if [ ! -f ansible/inventory/hosts.ini ]; then
+            echo "::error::Missing ansible/inventory/hosts.ini"
+            exit 1
+          fi
+          if ! grep -Eq '^[^#[:space:]].*ansible_user=' ansible/inventory/hosts.ini; then
+            echo "::error::Inventory has no configured hosts with ansible_user"
             exit 1
           fi
 
-          mkdir -p ansible/inventory
-          echo "[k8s_nodes]" > ansible/inventory/generated.ini
-
-          IFS=',' read -r -a HOSTS <<< "$TARGET_HOSTS"
-          count=0
-          for raw in "${HOSTS[@]}"; do
-            host=$(echo "$raw" | xargs)
-            if [ -z "$host" ]; then
-              continue
-            fi
-            echo "$host ansible_user=$SSH_USER ansible_port=$SSH_PORT ansible_ssh_private_key_file=$RUNNER_TEMP/ansible_key" >> ansible/inventory/generated.ini
+          awk 'NF && $1 !~ /^\[/' ansible/inventory/hosts.ini | while read -r host _; do
             ssh-keyscan -H "$host" >> ~/.ssh/known_hosts 2>/dev/null || true
-            count=$((count + 1))
           done
-
-          if [ "$count" -eq 0 ]; then
-            echo "::error::No valid hosts found in target_hosts input"
-            exit 1
-          fi
 
       - name: Ansible syntax check
         working-directory: ansible
@@ -100,14 +73,13 @@ jobs:
         env:
           ANSIBLE_CONFIG: ${{ github.workspace }}/ansible/ansible.cfg
         run: |
-          SSH_USER="${ANSIBLE_SSH_USER:-ubuntu}"
-          MINIKUBE_PROFILE_VAL="${MINIKUBE_PROFILE:-minikube}"
-          PROXY_BIND_VAL="${MINIKUBE_PROXY_BIND_ADDRESS:-0.0.0.0}"
-          PROXY_PORT_VAL="${MINIKUBE_PROXY_PORT:-8001}"
+          MINIKUBE_PROFILE_VAL="minikube"
+          PROXY_BIND_VAL="0.0.0.0"
+          PROXY_PORT_VAL="8001"
 
           ansible-playbook playbooks/install-k8s-stack.yml \
             --check --diff \
-            --extra-vars "minikube_run_user=${SSH_USER}" \
+            --private-key "$RUNNER_TEMP/ansible_key" \
             --extra-vars "minikube_profile=${MINIKUBE_PROFILE_VAL}" \
             --extra-vars "proxy_bind_address=${PROXY_BIND_VAL}" \
             --extra-vars "proxy_port=${PROXY_PORT_VAL}"
@@ -144,52 +116,32 @@ jobs:
           printf "%s\n" "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/ansible_key"
           chmod 600 "$RUNNER_TEMP/ansible_key"
 
-      - name: Build Ansible inventory from inputs
-        env:
-          TARGET_HOSTS: ${{ env.ANSIBLE_TARGET_HOSTS }}
-          SSH_USER: ${{ env.ANSIBLE_SSH_USER }}
-          SSH_PORT: ${{ env.ANSIBLE_SSH_PORT }}
+      - name: Validate static inventory
         run: |
-          SSH_USER="${SSH_USER:-ubuntu}"
-          SSH_PORT="${SSH_PORT:-22}"
-
-          if [ -z "$TARGET_HOSTS" ]; then
-            echo "::error::Repository variable ANSIBLE_TARGET_HOSTS is empty"
+          if [ ! -f ansible/inventory/hosts.ini ]; then
+            echo "::error::Missing ansible/inventory/hosts.ini"
+            exit 1
+          fi
+          if ! grep -Eq '^[^#[:space:]].*ansible_user=' ansible/inventory/hosts.ini; then
+            echo "::error::Inventory has no configured hosts with ansible_user"
             exit 1
           fi
 
-          mkdir -p ansible/inventory
-          echo "[k8s_nodes]" > ansible/inventory/generated.ini
-
-          IFS=',' read -r -a HOSTS <<< "$TARGET_HOSTS"
-          count=0
-          for raw in "${HOSTS[@]}"; do
-            host=$(echo "$raw" | xargs)
-            if [ -z "$host" ]; then
-              continue
-            fi
-            echo "$host ansible_user=$SSH_USER ansible_port=$SSH_PORT ansible_ssh_private_key_file=$RUNNER_TEMP/ansible_key" >> ansible/inventory/generated.ini
+          awk 'NF && $1 !~ /^\[/' ansible/inventory/hosts.ini | while read -r host _; do
             ssh-keyscan -H "$host" >> ~/.ssh/known_hosts 2>/dev/null || true
-            count=$((count + 1))
           done
-
-          if [ "$count" -eq 0 ]; then
-            echo "::error::No valid hosts found in target_hosts input"
-            exit 1
-          fi
 
       - name: Install Kubernetes stack
         working-directory: ansible
         env:
           ANSIBLE_CONFIG: ${{ github.workspace }}/ansible/ansible.cfg
         run: |
-          SSH_USER="${ANSIBLE_SSH_USER:-ubuntu}"
-          MINIKUBE_PROFILE_VAL="${MINIKUBE_PROFILE:-minikube}"
-          PROXY_BIND_VAL="${MINIKUBE_PROXY_BIND_ADDRESS:-0.0.0.0}"
-          PROXY_PORT_VAL="${MINIKUBE_PROXY_PORT:-8001}"
+          MINIKUBE_PROFILE_VAL="minikube"
+          PROXY_BIND_VAL="0.0.0.0"
+          PROXY_PORT_VAL="8001"
 
           ansible-playbook playbooks/install-k8s-stack.yml \
-            --extra-vars "minikube_run_user=${SSH_USER}" \
+            --private-key "$RUNNER_TEMP/ansible_key" \
             --extra-vars "minikube_profile=${MINIKUBE_PROFILE_VAL}" \
             --extra-vars "proxy_bind_address=${PROXY_BIND_VAL}" \
             --extra-vars "proxy_port=${PROXY_PORT_VAL}"
