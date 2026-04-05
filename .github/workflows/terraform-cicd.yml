@@ -122,12 +122,6 @@ jobs:
             -backend-config="skip_metadata_api_check=true" \
             -backend-config="force_path_style=true"
 
-      - name: Download plan artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: vasylyshyn
-          path: terraform
-
       - name: Terraform Apply
         working-directory: terraform
-        run: terraform apply -auto-approve vasylyshyn
+        run: terraform apply -auto-approve
