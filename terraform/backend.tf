@@ -11,6 +11,6 @@ terraform {
   backend "s3" {
     bucket = "vasylyshyn-bucket"
     key    = "terraform/vasylyshyn.tfstate"
-    region = "eu-central-1"
+    region = "eu-north-1"
   }
 }
