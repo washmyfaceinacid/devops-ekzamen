@@ -1,5 +1,5 @@
 ---
-- name: install Minikube stack
+- name: install Kubernetes stack
   hosts: k8s_nodes
   become: true
   gather_facts: true
@@ -142,6 +142,7 @@
         src: /tmp/helm.tar.gz
         dest: /tmp
         remote_src: true
+      when: not ansible_check_mode
 
     - name: install Helm binary
       ansible.builtin.copy:
@@ -149,6 +150,7 @@
         dest: /usr/local/bin/helm
         mode: "0755"
         remote_src: true
+      when: not ansible_check_mode
 
     - name: ensure minikube owner exists in docker group
       ansible.builtin.user:
