@@ -166,14 +166,14 @@
       when: not ansible_check_mode
 
     - name: check minikube status
-      ansible.builtin.command: "minikube status -p {{ minikube_profile }}"
+      ansible.builtin.shell: "sg docker -c 'minikube status -p {{ minikube_profile }}'"
       become_user: "{{ minikube_run_user }}"
       register: minikube_status
       changed_when: false
       failed_when: false
 
     - name: start minikube with docker driver when not running
-      ansible.builtin.command: "minikube start -p {{ minikube_profile }} --driver=docker"
+      ansible.builtin.shell: "sg docker -c 'minikube start -p {{ minikube_profile }} --driver=docker'"
       become_user: "{{ minikube_run_user }}"
       when: minikube_status.rc != 0
 
