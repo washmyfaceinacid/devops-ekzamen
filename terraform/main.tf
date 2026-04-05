@@ -142,6 +142,6 @@ resource "aws_s3_bucket" "main" {
   bucket = var.bucket_name
 
   tags = {
-    Name = "vasylyshyn-bucket"
+    Name = "vasylyshyn-bucket-s3"
   }
 }
