@@ -259,7 +259,21 @@ jobs:
             --set image.repository="${{ needs.build_dev_image.outputs.image_repository }}" \
             --set image.tag="develop" \
             --set service.port=8002 \
-            --wait --timeout 10m --atomic
+            --wait --timeout 15m --rollback-on-failure
+
+      - name: Dev deployment diagnostics on failure
+        if: failure()
+        run: |
+          echo "--- Helm status (dev) ---"
+          helm status hello-world-dev -n dev || true
+          echo "--- Pods (dev) ---"
+          kubectl get pods -n dev -o wide || true
+          echo "--- Services (dev) ---"
+          kubectl get svc -n dev || true
+          echo "--- Recent events (dev) ---"
+          kubectl get events -n dev --sort-by=.metadata.creationTimestamp | tail -n 50 || true
+          echo "--- Describe deployment (dev) ---"
+          kubectl describe deploy django-hello-world -n dev || true
 
   deploy_release:
     name: Deploy Release to EKS
@@ -302,7 +316,21 @@ jobs:
             --set image.repository="${{ needs.build_release_image.outputs.image_repository }}" \
             --set image.tag="1.0.0" \
             --set service.port=8003 \
-            --wait --timeout 10m --atomic
+            --wait --timeout 15m --rollback-on-failure
+
+      - name: Release deployment diagnostics on failure
+        if: failure()
+        run: |
+          echo "--- Helm status (release) ---"
+          helm status hello-world-release -n release || true
+          echo "--- Pods (release) ---"
+          kubectl get pods -n release -o wide || true
+          echo "--- Services (release) ---"
+          kubectl get svc -n release || true
+          echo "--- Recent events (release) ---"
+          kubectl get events -n release --sort-by=.metadata.creationTimestamp | tail -n 50 || true
+          echo "--- Describe deployment (release) ---"
+          kubectl describe deploy django-hello-world -n release || true
 
   rollback:
     name: Rollback Helm Release
