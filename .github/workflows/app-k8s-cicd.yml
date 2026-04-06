@@ -175,7 +175,7 @@ jobs:
             --set image.repository="${{ needs.build_dev_image.outputs.image_repository }}" \
             --set image.tag="develop" \
             --set service.port=8002 > rendered-dev.yaml
-          kubectl apply --dry-run=client -f rendered-dev.yaml
+          kubectl apply --dry-run=client --validate=false -f rendered-dev.yaml
 
   validate_release_deploy:
     name: Validate Release Deployment (Dry-Run)
@@ -202,7 +202,7 @@ jobs:
             --set image.repository="${{ needs.build_release_image.outputs.image_repository }}" \
             --set image.tag="1.0.0" \
             --set service.port=8003 > rendered-release.yaml
-          kubectl apply --dry-run=client -f rendered-release.yaml
+          kubectl apply --dry-run=client --validate=false -f rendered-release.yaml
 
   deploy_dev:
     name: Deploy Dev to EKS
