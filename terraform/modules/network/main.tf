@@ -26,11 +26,11 @@ resource "aws_subnet" "public" {
   availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
 
-  tags = {
-    Name = "vasylyshyn-public-subnet-1"
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-    "kubernetes.io/role/elb" = "1"
-  }
+  tags = merge(
+    { Name = "vasylyshyn-public-subnet-1" },
+    { "kubernetes.io/cluster/${var.cluster_name}" = "shared" },
+    { "kubernetes.io/role/elb" = "1" }
+  )
 }
 
 resource "aws_subnet" "public_2" {
@@ -39,11 +39,11 @@ resource "aws_subnet" "public_2" {
   availability_zone       = data.aws_availability_zones.available.names[1]
   map_public_ip_on_launch = true
 
-  tags = {
-    Name = "vasylyshyn-public-subnet-2"
-    "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-    "kubernetes.io/role/elb" = "1"
-  }
+  tags = merge(
+    { Name = "vasylyshyn-public-subnet-2" },
+    { "kubernetes.io/cluster/${var.cluster_name}" = "shared" },
+    { "kubernetes.io/role/elb" = "1" }
+  )
 }
 
 resource "aws_route_table" "public" {
