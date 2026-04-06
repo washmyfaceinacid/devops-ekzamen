@@ -1,4 +1,4 @@
-name: App CI/CD (Simple)
+name: App CI/CD
 
 on:
   push:
