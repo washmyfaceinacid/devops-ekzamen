@@ -2,6 +2,6 @@ resource "aws_s3_bucket" "main" {
   bucket = var.bucket_name
 
   tags = {
-    Name = "vasylyshyn-bucket-s3"
+    Name = "vasylyshyn-bucket-s3-1"
   }
 }
