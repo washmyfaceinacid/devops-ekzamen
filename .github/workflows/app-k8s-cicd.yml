@@ -2,7 +2,7 @@ name: App CI/CD
 
 on:
   push:
-    branches: [develop]
+    branches: [develop, main]
     tags: ["1.0.0"]
   workflow_dispatch:
     inputs:
