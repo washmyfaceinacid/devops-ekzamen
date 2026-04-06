@@ -21,6 +21,13 @@ module "storage" {
   bucket_name = var.bucket_name
 }
 
+module "ecr" {
+  source = "./modules/ecr"
+
+  repository_name     = var.ecr_repository_name
+  image_tag_mutability = var.ecr_image_tag_mutability
+}
+
 module "kubernetes" {
   source = "./modules/kubernetes"
 

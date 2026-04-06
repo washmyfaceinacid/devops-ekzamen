@@ -4,12 +4,14 @@
 region      = "eu-central-1"
 bucket_name = "vasylyshyn-bucket"
 cluster_name = "vasylyshyn-eks-cluster"
+ecr_repository_name = "vasylyshyn-app"
 
 # Optional overrides:
 #instance_type      = "t3.xlarge"
 #vpc_cidr           = "10.10.10.0/24"
 #public_subnet_cidr = "10.10.10.0/25"
 #public_subnet_cidr_2 = "10.10.10.128/25"
+#ecr_image_tag_mutability = "MUTABLE"
 #kubernetes_version   = "1.30"
 #eks_node_instance_type = "t3.small"
 #eks_desired_capacity = 2

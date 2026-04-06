@@ -34,6 +34,18 @@ variable "bucket_name" {
   default     = "vasylyshyn-bucket-s3"
 }
 
+variable "ecr_repository_name" {
+  description = "ECR repository name for application images"
+  type        = string
+  default     = "vasylyshyn-repo"
+}
+
+variable "ecr_image_tag_mutability" {
+  description = "ECR image tag mutability"
+  type        = string
+  default     = "MUTABLE"
+}
+
 variable "cluster_name" {
   description = "EKS cluster name"
   type        = string
