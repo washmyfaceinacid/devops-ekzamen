@@ -300,12 +300,18 @@ jobs:
           helm status hello-world-dev -n dev || true
           echo "--- Pods (dev) ---"
           kubectl get pods -n dev -o wide || true
+          echo "--- ReplicaSets (dev) ---"
+          kubectl get rs -n dev || true
           echo "--- Services (dev) ---"
           kubectl get svc -n dev || true
           echo "--- Recent events (dev) ---"
           kubectl get events -n dev --sort-by=.metadata.creationTimestamp | tail -n 50 || true
           echo "--- Describe deployment (dev) ---"
           kubectl describe deploy django-hello-world -n dev || true
+          echo "--- Describe pods (dev) ---"
+          kubectl describe pods -n dev || true
+          echo "--- Container logs (dev) ---"
+          kubectl logs -n dev deployment/django-hello-world --all-containers --tail=200 || true
 
   deploy_release:
     name: Deploy Release to EKS
@@ -389,12 +395,18 @@ jobs:
           helm status hello-world-release -n release || true
           echo "--- Pods (release) ---"
           kubectl get pods -n release -o wide || true
+          echo "--- ReplicaSets (release) ---"
+          kubectl get rs -n release || true
           echo "--- Services (release) ---"
           kubectl get svc -n release || true
           echo "--- Recent events (release) ---"
           kubectl get events -n release --sort-by=.metadata.creationTimestamp | tail -n 50 || true
           echo "--- Describe deployment (release) ---"
           kubectl describe deploy django-hello-world -n release || true
+          echo "--- Describe pods (release) ---"
+          kubectl describe pods -n release || true
+          echo "--- Container logs (release) ---"
+          kubectl logs -n release deployment/django-hello-world --all-containers --tail=200 || true
 
   rollback:
     name: Rollback Helm Release
