@@ -114,6 +114,7 @@ jobs:
             -f "$HELM_CHART_PATH/values-dev.yaml" \
             --set image.repository="${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}" \
             --set image.tag="develop" \
+            --set service.type=LoadBalancer \
             --set service.port=8002 >/dev/null
 
       - name: Resolve target EKS cluster
@@ -148,6 +149,7 @@ jobs:
             -f "$HELM_CHART_PATH/values-dev.yaml" \
             --set image.repository="${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}" \
             --set image.tag="develop" \
+            --set service.type=LoadBalancer \
             --set service.port=8002 \
             --wait --timeout 15m --rollback-on-failure
 
@@ -211,6 +213,7 @@ jobs:
             -f "$HELM_CHART_PATH/values-prod.yaml" \
             --set image.repository="${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}" \
             --set image.tag="${{ github.event_name == 'push' && github.ref_name || inputs.release_tag }}" \
+            --set service.type=LoadBalancer \
             --set service.port=8003 >/dev/null
 
       - name: Resolve target EKS cluster
@@ -245,6 +248,7 @@ jobs:
             -f "$HELM_CHART_PATH/values-prod.yaml" \
             --set image.repository="${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}" \
             --set image.tag="${{ github.event_name == 'push' && github.ref_name || inputs.release_tag }}" \
+            --set service.type=LoadBalancer \
             --set service.port=8003 \
             --wait --timeout 15m --rollback-on-failure
 
