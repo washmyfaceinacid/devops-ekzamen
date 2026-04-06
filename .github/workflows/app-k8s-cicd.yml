@@ -37,6 +37,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: app-cicd-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   APP_CONTEXT: task3/devops-exam-pt2
@@ -122,6 +126,17 @@ jobs:
 
       - name: Deploy to dev namespace (port 8002)
         run: |
+          if helm status hello-world-dev -n dev >/dev/null 2>&1; then
+            if helm status hello-world-dev -n dev | grep -q 'STATUS: pending-'; then
+              LAST_DEPLOYED_REV=$(helm history hello-world-dev -n dev | awk 'NR>1 && $3 == "deployed" {rev=$1} END {print rev}')
+              if [ -n "$LAST_DEPLOYED_REV" ]; then
+                helm rollback hello-world-dev "$LAST_DEPLOYED_REV" -n dev --wait --timeout 10m || true
+              else
+                helm uninstall hello-world-dev -n dev || true
+              fi
+            fi
+          fi
+
           helm upgrade --install hello-world-dev "$HELM_CHART_PATH" \
             --namespace dev --create-namespace \
             -f "$HELM_CHART_PATH/values.yaml" \
@@ -208,6 +223,17 @@ jobs:
 
       - name: Deploy to release namespace (port 8003)
         run: |
+          if helm status hello-world-release -n release >/dev/null 2>&1; then
+            if helm status hello-world-release -n release | grep -q 'STATUS: pending-'; then
+              LAST_DEPLOYED_REV=$(helm history hello-world-release -n release | awk 'NR>1 && $3 == "deployed" {rev=$1} END {print rev}')
+              if [ -n "$LAST_DEPLOYED_REV" ]; then
+                helm rollback hello-world-release "$LAST_DEPLOYED_REV" -n release --wait --timeout 10m || true
+              else
+                helm uninstall hello-world-release -n release || true
+              fi
+            fi
+          fi
+
           helm upgrade --install hello-world-release "$HELM_CHART_PATH" \
             --namespace release --create-namespace \
             -f "$HELM_CHART_PATH/values.yaml" \
