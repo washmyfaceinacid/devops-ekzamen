@@ -250,6 +250,11 @@ jobs:
         run: |
           aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
 
+      - name: Preflight cluster readiness (dev)
+        run: |
+          kubectl get nodes -o wide
+          kubectl wait --for=condition=Ready nodes --all --timeout=5m
+
       - name: Deploy dev release with Helm
         run: |
           helm upgrade --install hello-world-dev "$HELM_CHART_PATH" \
@@ -259,7 +264,7 @@ jobs:
             --set image.repository="${{ needs.build_dev_image.outputs.image_repository }}" \
             --set image.tag="develop" \
             --set service.port=8002 \
-            --wait --timeout 15m --rollback-on-failure
+            --wait --timeout 15m --rollback-on-failure --debug
 
       - name: Dev deployment diagnostics on failure
         if: failure()
@@ -307,6 +312,11 @@ jobs:
         run: |
           aws eks update-kubeconfig --name "$EKS_CLUSTER_NAME" --region "$AWS_REGION"
 
+      - name: Preflight cluster readiness (release)
+        run: |
+          kubectl get nodes -o wide
+          kubectl wait --for=condition=Ready nodes --all --timeout=5m
+
       - name: Deploy release with Helm
         run: |
           helm upgrade --install hello-world-release "$HELM_CHART_PATH" \
@@ -316,7 +326,7 @@ jobs:
             --set image.repository="${{ needs.build_release_image.outputs.image_repository }}" \
             --set image.tag="1.0.0" \
             --set service.port=8003 \
-            --wait --timeout 15m --rollback-on-failure
+            --wait --timeout 15m --rollback-on-failure --debug
 
       - name: Release deployment diagnostics on failure
         if: failure()
