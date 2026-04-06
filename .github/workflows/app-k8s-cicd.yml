@@ -257,14 +257,41 @@ jobs:
 
       - name: Deploy dev release with Helm
         run: |
-          helm upgrade --install hello-world-dev "$HELM_CHART_PATH" \
-            --namespace dev --create-namespace \
-            -f "$HELM_CHART_PATH/values.yaml" \
-            -f "$HELM_CHART_PATH/values-dev.yaml" \
-            --set image.repository="${{ needs.build_dev_image.outputs.image_repository }}" \
-            --set image.tag="develop" \
-            --set service.port=8002 \
-            --wait --timeout 15m --rollback-on-failure --debug
+          # Recover from stale pending Helm operations if previous run was interrupted.
+          if helm status hello-world-dev -n dev >/dev/null 2>&1; then
+            STATUS_LINE=$(helm status hello-world-dev -n dev | grep '^STATUS:' || true)
+            if echo "$STATUS_LINE" | grep -q 'pending-'; then
+              LAST_DEPLOYED_REV=$(helm history hello-world-dev -n dev | awk 'NR>1 && $3 == "deployed" {rev=$1} END {print rev}')
+              if [ -n "$LAST_DEPLOYED_REV" ]; then
+                helm rollback hello-world-dev "$LAST_DEPLOYED_REV" -n dev --wait --timeout 10m || true
+              else
+                helm uninstall hello-world-dev -n dev || true
+              fi
+            fi
+          fi
+
+          ATTEMPT=1
+          until [ "$ATTEMPT" -gt 3 ]; do
+            if helm upgrade --install hello-world-dev "$HELM_CHART_PATH" \
+              --namespace dev --create-namespace \
+              -f "$HELM_CHART_PATH/values.yaml" \
+              -f "$HELM_CHART_PATH/values-dev.yaml" \
+              --set image.repository="${{ needs.build_dev_image.outputs.image_repository }}" \
+              --set image.tag="develop" \
+              --set service.port=8002 \
+              --wait --timeout 15m --rollback-on-failure --debug; then
+              break
+            fi
+
+            if [ "$ATTEMPT" -eq 3 ]; then
+              echo "Helm deploy failed after 3 attempts"
+              exit 1
+            fi
+
+            echo "Helm deploy attempt $ATTEMPT failed, retrying in 20s..."
+            sleep 20
+            ATTEMPT=$((ATTEMPT + 1))
+          done
 
       - name: Dev deployment diagnostics on failure
         if: failure()
@@ -319,14 +346,41 @@ jobs:
 
       - name: Deploy release with Helm
         run: |
-          helm upgrade --install hello-world-release "$HELM_CHART_PATH" \
-            --namespace release --create-namespace \
-            -f "$HELM_CHART_PATH/values.yaml" \
-            -f "$HELM_CHART_PATH/values-prod.yaml" \
-            --set image.repository="${{ needs.build_release_image.outputs.image_repository }}" \
-            --set image.tag="1.0.0" \
-            --set service.port=8003 \
-            --wait --timeout 15m --rollback-on-failure --debug
+          # Recover from stale pending Helm operations if previous run was interrupted.
+          if helm status hello-world-release -n release >/dev/null 2>&1; then
+            STATUS_LINE=$(helm status hello-world-release -n release | grep '^STATUS:' || true)
+            if echo "$STATUS_LINE" | grep -q 'pending-'; then
+              LAST_DEPLOYED_REV=$(helm history hello-world-release -n release | awk 'NR>1 && $3 == "deployed" {rev=$1} END {print rev}')
+              if [ -n "$LAST_DEPLOYED_REV" ]; then
+                helm rollback hello-world-release "$LAST_DEPLOYED_REV" -n release --wait --timeout 10m || true
+              else
+                helm uninstall hello-world-release -n release || true
+              fi
+            fi
+          fi
+
+          ATTEMPT=1
+          until [ "$ATTEMPT" -gt 3 ]; do
+            if helm upgrade --install hello-world-release "$HELM_CHART_PATH" \
+              --namespace release --create-namespace \
+              -f "$HELM_CHART_PATH/values.yaml" \
+              -f "$HELM_CHART_PATH/values-prod.yaml" \
+              --set image.repository="${{ needs.build_release_image.outputs.image_repository }}" \
+              --set image.tag="1.0.0" \
+              --set service.port=8003 \
+              --wait --timeout 15m --rollback-on-failure --debug; then
+              break
+            fi
+
+            if [ "$ATTEMPT" -eq 3 ]; then
+              echo "Helm deploy failed after 3 attempts"
+              exit 1
+            fi
+
+            echo "Helm deploy attempt $ATTEMPT failed, retrying in 20s..."
+            sleep 20
+            ATTEMPT=$((ATTEMPT + 1))
+          done
 
       - name: Release deployment diagnostics on failure
         if: failure()
