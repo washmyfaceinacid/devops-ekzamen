@@ -5,8 +5,10 @@ image:
   pullPolicy: Always
 
 service:
+  type: LoadBalancer
   port: 8003
   targetPort: 8000
+  annotations: {}
 
 django:
   debug: "False"
