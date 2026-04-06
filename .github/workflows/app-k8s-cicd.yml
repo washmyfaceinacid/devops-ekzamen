@@ -3,7 +3,7 @@ name: App CI/CD
 on:
   push:
     branches: [develop]
-    tags: ["1.0.0"]
+    tags: ["*"]
   workflow_dispatch:
     inputs:
       action:
@@ -28,6 +28,11 @@ on:
         type: string
         default: vasylyshyn-eks-cluster
         required: true
+      release_tag:
+        description: "Release tag for manual deploy (e.g. 1.0.1)"
+        type: string
+        default: "1.0.0"
+        required: false
       rollback_revision:
         description: "Helm revision for rollback"
         type: string
@@ -150,14 +155,14 @@ jobs:
     name: Build, Push and Deploy RELEASE
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/1.0.0')) ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
       (github.event_name == 'workflow_dispatch' && inputs.action == 'deploy' && (inputs.target_environment == 'release' || inputs.target_environment == 'both'))
 
     steps:
-      - name: Checkout release source (tag 1.0.0)
+      - name: Checkout release source 
         uses: actions/checkout@v4
         with:
-          ref: refs/tags/1.0.0
+          ref: ${{ github.event_name == 'push' && github.ref || format('refs/tags/{0}', inputs.release_tag) }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -190,7 +195,7 @@ jobs:
           context: ${{ env.APP_CONTEXT }}
           file: ${{ env.APP_CONTEXT }}/Dockerfile
           push: true
-          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:1.0.0
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:${{ github.event_name == 'push' && github.ref_name || inputs.release_tag }}
 
       - name: Setup Helm
         uses: azure/setup-helm@v4
@@ -205,7 +210,7 @@ jobs:
             -f "$HELM_CHART_PATH/values.yaml" \
             -f "$HELM_CHART_PATH/values-prod.yaml" \
             --set image.repository="${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}" \
-            --set image.tag="1.0.0" \
+            --set image.tag="${{ github.event_name == 'push' && github.ref_name || inputs.release_tag }}" \
             --set service.port=8003 >/dev/null
 
       - name: Resolve target EKS cluster
@@ -239,7 +244,7 @@ jobs:
             -f "$HELM_CHART_PATH/values.yaml" \
             -f "$HELM_CHART_PATH/values-prod.yaml" \
             --set image.repository="${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}" \
-            --set image.tag="1.0.0" \
+            --set image.tag="${{ github.event_name == 'push' && github.ref_name || inputs.release_tag }}" \
             --set service.port=8003 \
             --wait --timeout 15m --rollback-on-failure
 
