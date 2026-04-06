@@ -1,0 +1,13 @@
+replicaCount: 1
+
+image:
+  tag: "develop"
+
+service:
+  port: 8002
+  targetPort: 8000
+
+django:
+  debug: "True"
+  allowedHosts: "*"
+

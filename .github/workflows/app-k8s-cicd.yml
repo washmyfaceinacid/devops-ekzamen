@@ -1,0 +1,275 @@
+name: App CI/CD
+
+on:
+  push:
+    branches: [develop]
+    tags: ["1.0.0"]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Action to run"
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+        required: true
+      target_environment:
+        description: "Target environment"
+        type: choice
+        options: [dev, release, both]
+        default: both
+        required: true
+      ecr_repository:
+        description: "ECR repository name"
+        type: string
+        default: vasylyshyn-repo
+        required: true
+      eks_cluster_name:
+        description: "EKS cluster name"
+        type: string
+        default: vasylyshyn-eks-cluster
+        required: true
+      rollback_revision:
+        description: "Helm revision for rollback"
+        type: string
+        default: "1"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-cicd-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  APP_CONTEXT: task3/devops-exam-pt2
+  HELM_CHART_PATH: task3/devops-exam-pt2/helm-charts-hello-world
+  DEFAULT_ECR_REPOSITORY: vasylyshyn-repo
+  DEFAULT_EKS_CLUSTER: vasylyshyn-eks-cluster
+
+jobs:
+  deploy_dev:
+    name: Build, Push and Deploy DEV
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/develop') ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'deploy' && (inputs.target_environment == 'dev' || inputs.target_environment == 'both'))
+
+    steps:
+      - name: Checkout develop source
+        uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve target ECR repository
+        id: ecr-repo
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.ecr_repository }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ env.DEFAULT_ECR_REPOSITORY }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure ECR repository exists
+        run: |
+          aws ecr describe-repositories --repository-names "${{ steps.ecr-repo.outputs.name }}" >/dev/null 2>&1 || \
+          aws ecr create-repository --repository-name "${{ steps.ecr-repo.outputs.name }}"
+
+      - name: Build and push develop image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.APP_CONTEXT }}
+          file: ${{ env.APP_CONTEXT }}/Dockerfile
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:develop
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Validate chart before deployment (dev)
+        run: |
+          helm lint "$HELM_CHART_PATH" -f "$HELM_CHART_PATH/values.yaml" -f "$HELM_CHART_PATH/values-dev.yaml"
+          helm template hello-world-dev "$HELM_CHART_PATH" \
+            -f "$HELM_CHART_PATH/values.yaml" \
+            -f "$HELM_CHART_PATH/values-dev.yaml" \
+            --set image.repository="${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}" \
+            --set image.tag="develop" \
+            --set service.port=8002 >/dev/null
+
+      - name: Resolve target EKS cluster
+        id: eks-cluster
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.eks_cluster_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ env.DEFAULT_EKS_CLUSTER }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name "${{ steps.eks-cluster.outputs.name }}" --region "$AWS_REGION"
+
+      - name: Deploy to dev namespace (port 8002)
+        run: |
+          if helm status hello-world-dev -n dev >/dev/null 2>&1; then
+            if helm status hello-world-dev -n dev | grep -q 'STATUS: pending-'; then
+              LAST_DEPLOYED_REV=$(helm history hello-world-dev -n dev | awk 'NR>1 && $3 == "deployed" {rev=$1} END {print rev}')
+              if [ -n "$LAST_DEPLOYED_REV" ]; then
+                helm rollback hello-world-dev "$LAST_DEPLOYED_REV" -n dev --wait --timeout 10m || true
+              else
+                helm uninstall hello-world-dev -n dev || true
+              fi
+            fi
+          fi
+
+          helm upgrade --install hello-world-dev "$HELM_CHART_PATH" \
+            --namespace dev --create-namespace \
+            -f "$HELM_CHART_PATH/values.yaml" \
+            -f "$HELM_CHART_PATH/values-dev.yaml" \
+            --set image.repository="${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}" \
+            --set image.tag="develop" \
+            --set service.port=8002 \
+            --wait --timeout 15m --rollback-on-failure
+
+  deploy_release:
+    name: Build, Push and Deploy RELEASE
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/1.0.0')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'deploy' && (inputs.target_environment == 'release' || inputs.target_environment == 'both'))
+
+    steps:
+      - name: Checkout release source (tag 1.0.0)
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/1.0.0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve target ECR repository
+        id: ecr-repo
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.ecr_repository }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ env.DEFAULT_ECR_REPOSITORY }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ensure ECR repository exists
+        run: |
+          aws ecr describe-repositories --repository-names "${{ steps.ecr-repo.outputs.name }}" >/dev/null 2>&1 || \
+          aws ecr create-repository --repository-name "${{ steps.ecr-repo.outputs.name }}"
+
+      - name: Build and push release image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.APP_CONTEXT }}
+          file: ${{ env.APP_CONTEXT }}/Dockerfile
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}:1.0.0
+
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Validate chart before deployment (release)
+        run: |
+          helm lint "$HELM_CHART_PATH" -f "$HELM_CHART_PATH/values.yaml" -f "$HELM_CHART_PATH/values-prod.yaml"
+          helm template hello-world-release "$HELM_CHART_PATH" \
+            -f "$HELM_CHART_PATH/values.yaml" \
+            -f "$HELM_CHART_PATH/values-prod.yaml" \
+            --set image.repository="${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}" \
+            --set image.tag="1.0.0" \
+            --set service.port=8003 >/dev/null
+
+      - name: Resolve target EKS cluster
+        id: eks-cluster
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.eks_cluster_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=${{ env.DEFAULT_EKS_CLUSTER }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name "${{ steps.eks-cluster.outputs.name }}" --region "$AWS_REGION"
+
+      - name: Deploy to release namespace (port 8003)
+        run: |
+          if helm status hello-world-release -n release >/dev/null 2>&1; then
+            if helm status hello-world-release -n release | grep -q 'STATUS: pending-'; then
+              LAST_DEPLOYED_REV=$(helm history hello-world-release -n release | awk 'NR>1 && $3 == "deployed" {rev=$1} END {print rev}')
+              if [ -n "$LAST_DEPLOYED_REV" ]; then
+                helm rollback hello-world-release "$LAST_DEPLOYED_REV" -n release --wait --timeout 10m || true
+              else
+                helm uninstall hello-world-release -n release || true
+              fi
+            fi
+          fi
+
+          helm upgrade --install hello-world-release "$HELM_CHART_PATH" \
+            --namespace release --create-namespace \
+            -f "$HELM_CHART_PATH/values.yaml" \
+            -f "$HELM_CHART_PATH/values-prod.yaml" \
+            --set image.repository="${{ steps.login-ecr.outputs.registry }}/${{ steps.ecr-repo.outputs.name }}" \
+            --set image.tag="1.0.0" \
+            --set service.port=8003 \
+            --wait --timeout 15m --rollback-on-failure
+
+  rollback:
+    name: Rollback release (manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'rollback'
+
+    steps:
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name "${{ inputs.eks_cluster_name }}" --region "$AWS_REGION"
+
+      - name: Rollback selected environment
+        run: |
+          if [ "${{ inputs.target_environment }}" = "dev" ]; then
+            helm rollback hello-world-dev "${{ inputs.rollback_revision }}" -n dev --wait --timeout 10m
+          elif [ "${{ inputs.target_environment }}" = "release" ]; then
+            helm rollback hello-world-release "${{ inputs.rollback_revision }}" -n release --wait --timeout 10m
+          else
+            echo "For rollback, select either dev or release"
+            exit 1
+          fi
