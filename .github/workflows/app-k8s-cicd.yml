@@ -166,6 +166,13 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
 
+      - name: Install kubeconform
+        run: |
+          KUBECONFORM_VERSION="0.6.7"
+          curl -L "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" -o /tmp/kubeconform.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp
+          sudo mv /tmp/kubeconform /usr/local/bin/kubeconform
+
       - name: Helm lint and render (dev)
         run: |
           helm lint "$HELM_CHART_PATH" -f "$HELM_CHART_PATH/values.yaml" -f "$HELM_CHART_PATH/values-dev.yaml"
@@ -175,7 +182,7 @@ jobs:
             --set image.repository="${{ needs.build_dev_image.outputs.image_repository }}" \
             --set image.tag="develop" \
             --set service.port=8002 > rendered-dev.yaml
-          kubectl apply --dry-run=client --validate=false -f rendered-dev.yaml
+          kubeconform -strict -summary rendered-dev.yaml
 
   validate_release_deploy:
     name: Validate Release Deployment (Dry-Run)
@@ -193,6 +200,13 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
 
+      - name: Install kubeconform
+        run: |
+          KUBECONFORM_VERSION="0.6.7"
+          curl -L "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" -o /tmp/kubeconform.tar.gz
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp
+          sudo mv /tmp/kubeconform /usr/local/bin/kubeconform
+
       - name: Helm lint and render (release)
         run: |
           helm lint "$HELM_CHART_PATH" -f "$HELM_CHART_PATH/values.yaml" -f "$HELM_CHART_PATH/values-prod.yaml"
@@ -202,7 +216,7 @@ jobs:
             --set image.repository="${{ needs.build_release_image.outputs.image_repository }}" \
             --set image.tag="1.0.0" \
             --set service.port=8003 > rendered-release.yaml
-          kubectl apply --dry-run=client --validate=false -f rendered-release.yaml
+          kubeconform -strict -summary rendered-release.yaml
 
   deploy_dev:
     name: Deploy Dev to EKS
