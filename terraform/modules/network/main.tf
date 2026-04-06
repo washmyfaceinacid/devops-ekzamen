@@ -29,7 +29,7 @@ resource "aws_subnet" "public" {
   tags = {
     Name                                      = "vasylyshyn-public-subnet-1"
     "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-    "kubernetes.io/role/elb"                = "1"
+    "kubernetes.io/role/elb"                    = "1"
   }
 }
 
@@ -42,7 +42,7 @@ resource "aws_subnet" "public_2" {
   tags = {
     Name                                      = "vasylyshyn-public-subnet-2"
     "kubernetes.io/cluster/${var.cluster_name}" = "shared"
-    "kubernetes.io/role/elb"                = "1"
+    "kubernetes.io/role/elb"                    = "1"
   }
 }
 
